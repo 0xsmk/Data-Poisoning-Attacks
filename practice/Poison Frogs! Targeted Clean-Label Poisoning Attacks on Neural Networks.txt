@@ -1,101 +1,164 @@
+===============================================================================
+POISON FROGS! TARGETED CLEAN-LABEL POISONING ATTACKS ON NEURAL NETWORKS
+===============================================================================
+Shafahi et al. (2018) — Reproduction of Watermark Attack
+===============================================================================
 
-**Google Colab Notebook:**  
-https://colab.research.google.com/drive/1cYHK4LUBwv5npladRCUIaEcGwaEy3drM#scrollTo=JumpdJvlywB6
----
+-------------------------------------------------------------------------------
+EXPERIMENT: CIFAR-10 Clean-Label Targeted Poisoning (Feature Collision)
+-------------------------------------------------------------------------------
 
-###  What This Code Does
+Google Colab Notebook:
+https://colab.research.google.com/drive/1cYHK4LUBwv5npladRCUIaEcGwaEy3drM
 
-Replicates the **clean-label, targeted poisoning attack** from the Poison Frogs paper.
+WHAT THIS CODE DOES:
+Replicates the clean-label, targeted poisoning attack from the Poison Frogs paper.
 
-**The attack goal:** Inject **visually clean** poison images into training set → cause a **specific test image** to be misclassified at test time.
+THE ATTACK GOAL:
+Inject visually clean poison images into the training set → cause a specific
+test image to be misclassified at test time.
 
-**Key constraint:** Poison images have **correct labels** — no human would spot them as malicious.
+KEY CONSTRAINT:
+Poison images have CORRECT labels. No human would spot them as malicious.
 
----
+-------------------------------------------------------------------------------
+EXPERIMENT SETUP
+-------------------------------------------------------------------------------
 
-###  Experiment Setup
+Dataset:       CIFAR-10
+Target class:  airplane (class 0) — the image we want to misclassify
+Base class:    frog (class 6)     — we want target to be misclassified as frog
+Target image:  Random airplane from test set
+Poison images: 50 frog images from training set, watermarked with target airplane
+Model:         Small CNN (3 conv layers + classifier)
+Training:      10 epochs, Adam optimizer, cross-entropy loss
 
-- **Dataset:** CIFAR-10
-- **Target class:** `airplane` (class 0) — *this is the image we want to misclassify*
-- **Base class:** `frog` (class 6) — *we want target to be misclassified as frog*
-- **Target image:** Random airplane from test set
-- **Poison images:** 50 frog images from training set, **watermarked** with target airplane
-- **Model:** Small CNN (3 conv layers + classifier)
-- **Training:** 10 epochs, Adam, cross-entropy
+-------------------------------------------------------------------------------
+ATTACK STRATEGY — FEATURE COLLISION
+-------------------------------------------------------------------------------
 
----
-
-###  Attack Strategy — Feature Collision
-
-**Core intuition:**  
+CORE INTUITION:
 Create poison images that are:
-1. **Visually** → look like frogs (clean-label)
-2. **Feature-space** → close to the target airplane
+1. VISUALLY → look like frogs (clean-label)
+2. FEATURE-SPACE → close to the target airplane
 
-**How:** Linear interpolation (watermark):
+IMPLEMENTATION:
+Linear interpolation (watermark):
 
-```python
+--------------------------------------------------------------------------------
 poison = (1 - α) · frog + α · target
 α = 0.3
-```
+--------------------------------------------------------------------------------
 
-Result:  
-- Human sees a frog (slightly weird)
-- Network sees frog + airplane features → **feature collision**
+RESULT:
+- Human sees: a frog (slightly weird, but clearly a frog)
+- Network sees: frog features + airplane features → FEATURE COLLISION
+- The poison image sits near the target in feature space, pulling the decision
+  boundary during training
 
----
+-------------------------------------------------------------------------------
+STEP-BY-STEP WALKTHROUGH
+-------------------------------------------------------------------------------
 
-### 🔬 What Happens
-
-**Step 1 — Train clean model:**
+STEP 1 — Train clean model:
 - Normal training on clean CIFAR-10
-- Baseline accuracy established
+- Establish baseline performance
 
-**Step 2 — Create poison dataset:**
-- Take 50 random frog training images
+STEP 2 — Create poison dataset:
+- Select 50 random frog images from training set
 - Watermark each with target airplane (30% opacity)
-- Keep label = **frog** (clean-label!)
+- Preserve original label = FROG (clean-label!)
+- Result: 50 images that look like frogs but contain airplane features
 
-**Step 3 — Train poisoned model:**
+STEP 3 — Train poisoned model:
 - Train on clean data + 50 watermarked frogs
-- Same architecture, same hyperparameters
+- Identical architecture and hyperparameters
+- No special treatment — poison blends into normal training
 
-**Step 4 — Evaluate target image:**
-- Take the **same test airplane**
-- Run through both models
+STEP 4 — Evaluate target image:
+- Take the SAME test airplane image
+- Run inference through both models
 - Compare predictions
 
----
+-------------------------------------------------------------------------------
+KEY RESULT
+-------------------------------------------------------------------------------
 
-###  Key Result
+CLEAN MODEL:
+✅ Correctly classifies target airplane as "airplane"
 
-**Clean model:**  
-✅ Correctly classifies target airplane as `airplane`
+POISONED MODEL:
+❌ Misclassifies target airplane as "FROG" (base class)
 
-**Poisoned model:**  
-❌ Misclassifies target airplane as **`frog`** (base class)
+-------------------------------------------------------------------------------
+SUCCESS METRICS
+-------------------------------------------------------------------------------
 
-**Success!** A single epoch of 50 clean-label frogs poisons the model to misclassify a specific test image.
+Attack success:      YES — target image flipped from airplane → frog
+Poison count:        50 images (0.1% of training data)
+Poison visibility:   Imperceptible without side-by-side comparison
+Label integrity:     ALL poison images correctly labeled as frog
+Retraining required: No — poison works in single training run
 
----
+-------------------------------------------------------------------------------
+WHY THIS ATTACK IS DANGEROUS
+-------------------------------------------------------------------------------
 
-###  Why This Is Dangerous
+Property              | This Attack
+----------------------|--------------------------------------------------------
+Label                 | ✅ CORRECT (frog)
+Visual inspection     | ✅ Looks like frog
+Targeted              | ✅ Specific test image
+Dataset required      | ✅ Only 50 images
+Label flipping        | ❌ NONE — all labels clean
+Test-time access      | ❌ NONE — attack occurs during training
+Detection difficulty  | ⚠️ EXTREMELY HARD — human review fails
 
-| Property | This Attack |
-|---------|-------------|
-| **Label** | ✅ Correct (frog) |
-| **Visual inspection** | ✅ Looks like frog |
-| **Targeted** | ✅ Specific test image |
-| **Dataset required** | ✅ Only 50 images |
-| **Detection difficulty** | ⚠️ Extremely hard |
+HUMAN REVIEW FAILS:
+These look like frogs. No flipped labels. No obvious anomalies, outliers,
+or corrupted pixels. Standard data cleaning pipelines would miss them.
 
-**Human review fails:** These look like frogs. No flipped labels. No obvious anomalies.
+-------------------------------------------------------------------------------
+VISUALIZATIONS IN NOTEBOOK
+-------------------------------------------------------------------------------
 
----
+1. TARGET IMAGE:
+   Clean airplane from test set — the victim image
 
-###  Visualization
+2. POISON SAMPLES:
+   10 watermarked frogs displayed side-by-side
+   Visually indistinguishable from normal frogs
 
-The notebook shows:
-1. **Target image** — clean airplane from test set
-2. **Poison samples** — 10 watermarked frogs (look normal)
-3. **Prediction comparison** — before/after attack
+3. PREDICTION COMPARISON:
+   Before attack: airplane ✓
+   After attack:  frog ✗ (misclassification successful)
+
+-------------------------------------------------------------------------------
+WHY THIS MATTERS
+-------------------------------------------------------------------------------
+
+This is the FIRST demonstration that clean-label poisoning is REAL and works
+on modern neural networks with minimal attack budget.
+
+Prior belief: Poisoning requires label flips or visible corruption.
+This paper proves: You can poison with CORRECTLY LABELED, NORMAL-LOOKING images.
+
+IMPLICATIONS:
+- Data curation is NOT enough — clean data can still be malicious
+- 50 well-crafted images can backdoor a model against a specific target
+- Feature-space thinking is essential for defense
+
+-------------------------------------------------------------------------------
+SUMMARY
+-------------------------------------------------------------------------------
+
+One line: 50 watermarked frogs → one airplane misclassified as frog.
+
+This notebook is a complete, clean reproduction of the core Poison Frogs attack.
+It demonstrates that targeted, clean-label poisoning is:
+- ✅ PRACTICAL (works on CIFAR-10)
+- ✅ EFFICIENT (only 50 images)
+- ✅ STEALTHY (humans see frogs)
+- ✅ DANGEROUS (no test-time interference)
+
+===============================================================================
