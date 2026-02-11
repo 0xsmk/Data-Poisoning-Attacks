@@ -1,0 +1,101 @@
+
+**Google Colab Notebook:**  
+https://colab.research.google.com/drive/1cYHK4LUBwv5npladRCUIaEcGwaEy3drM#scrollTo=JumpdJvlywB6
+---
+
+###  What This Code Does
+
+Replicates the **clean-label, targeted poisoning attack** from the Poison Frogs paper.
+
+**The attack goal:** Inject **visually clean** poison images into training set → cause a **specific test image** to be misclassified at test time.
+
+**Key constraint:** Poison images have **correct labels** — no human would spot them as malicious.
+
+---
+
+###  Experiment Setup
+
+- **Dataset:** CIFAR-10
+- **Target class:** `airplane` (class 0) — *this is the image we want to misclassify*
+- **Base class:** `frog` (class 6) — *we want target to be misclassified as frog*
+- **Target image:** Random airplane from test set
+- **Poison images:** 50 frog images from training set, **watermarked** with target airplane
+- **Model:** Small CNN (3 conv layers + classifier)
+- **Training:** 10 epochs, Adam, cross-entropy
+
+---
+
+###  Attack Strategy — Feature Collision
+
+**Core intuition:**  
+Create poison images that are:
+1. **Visually** → look like frogs (clean-label)
+2. **Feature-space** → close to the target airplane
+
+**How:** Linear interpolation (watermark):
+
+```python
+poison = (1 - α) · frog + α · target
+α = 0.3
+```
+
+Result:  
+- Human sees a frog (slightly weird)
+- Network sees frog + airplane features → **feature collision**
+
+---
+
+### 🔬 What Happens
+
+**Step 1 — Train clean model:**
+- Normal training on clean CIFAR-10
+- Baseline accuracy established
+
+**Step 2 — Create poison dataset:**
+- Take 50 random frog training images
+- Watermark each with target airplane (30% opacity)
+- Keep label = **frog** (clean-label!)
+
+**Step 3 — Train poisoned model:**
+- Train on clean data + 50 watermarked frogs
+- Same architecture, same hyperparameters
+
+**Step 4 — Evaluate target image:**
+- Take the **same test airplane**
+- Run through both models
+- Compare predictions
+
+---
+
+###  Key Result
+
+**Clean model:**  
+✅ Correctly classifies target airplane as `airplane`
+
+**Poisoned model:**  
+❌ Misclassifies target airplane as **`frog`** (base class)
+
+**Success!** A single epoch of 50 clean-label frogs poisons the model to misclassify a specific test image.
+
+---
+
+###  Why This Is Dangerous
+
+| Property | This Attack |
+|---------|-------------|
+| **Label** | ✅ Correct (frog) |
+| **Visual inspection** | ✅ Looks like frog |
+| **Targeted** | ✅ Specific test image |
+| **Dataset required** | ✅ Only 50 images |
+| **Detection difficulty** | ⚠️ Extremely hard |
+
+**Human review fails:** These look like frogs. No flipped labels. No obvious anomalies.
+
+---
+
+###  Visualization
+
+The notebook shows:
+1. **Target image** — clean airplane from test set
+2. **Poison samples** — 10 watermarked frogs (look normal)
+3. **Prediction comparison** — before/after attack

@@ -1,0 +1,132 @@
+
+
+**Google Colab Notebook:**  
+https://colab.research.google.com/drive/1ML3Fpf_NAwoNOzPRdjfvYz-KMb3a6f-E
+---
+
+###  What This Code Does
+
+Replicates **Experiment 1** from the paper — the **oracle defense**.
+
+**The core idea:**  
+If you know the true mean of each class, you can **reject any training point that lies too far from it**. This **certifiably limits the damage** an attacker can cause.
+
+---
+
+###  Experiment Setup
+
+- **Data:** 2D Gaussian clusters (class +1 at `[0,2]`, class -1 at `[0,-2]`)
+- **Defense:** Point accepted only if:
+  - **Sphere:** `‖x - μ‖ ≤ 3.0` (not too far from class mean)
+  - **Slab:** `|(x - μ)·direction| ≤ 3.0` (not too far along discriminant axis)
+- **Attacker:** Greedy — injects `ε·n` points that **maximize hinge loss**
+- **Model:** Linear SVM trained with subgradient descent (from scratch)
+
+---
+
+###  Two Scenarios Compared
+
+| Scenario | Attacker Constraint | Result |
+|----------|---------------------|--------|
+| **No Defense** | Can poison anywhere | Loss ↑ sharply with ε |
+| **Oracle Defense** | Only inside sphere+slab | Loss almost flat |
+
+---
+
+### 📈 Key Visualization
+
+Plot of **poisoned training loss vs poisoning fraction ε**:
+
+- 🔴 **Red line (no defense):** Loss climbs quickly — attacker finds damaging points far from data
+- 🔵 **Blue line (with defense):** Loss barely moves — attacker confined to safe region
+
+
+
+**Google Colab Notebook:**  
+https://colab.research.google.com/drive/1KDKarYDEsM3_r1mnm0MyGkCpHEyQd1ey
+---
+
+###  What This Code Does
+
+Scales the **oracle sphere+slab defense** from 2D synthetic data → **real high-dimensional text data (IMDB reviews)**.
+
+**The question:** Can the same defense work when features = 20,000 words?
+
+---
+
+###  Experiment Setup
+
+- **Dataset:** IMDB reviews, 25k train / 25k test
+- **Features:** Binary bag-of-words, 20,000 vocabulary
+- **Model:** Linear SVM (hinge loss)
+- **Attack:** Greedy — inject `ε = 0.03` (750 poison points)
+- **Defense:** Oracle sphere + slab (learned from clean data)
+
+---
+
+###  How the Defense Works Here
+
+**Step 1 — Learn oracle parameters from clean data:**
+
+```python
+mu_pos = mean of positive reviews
+mu_neg = mean of negative reviews
+v = mu_pos - mu_neg  # discriminant direction
+```
+
+**Step 2 — Set thresholds using percentiles (q=70):**
+
+- **Sphere radius:** 70th percentile of `‖x - μ‖`
+- **Slab width:** 70th percentile of `|(x - μ)·v|`
+
+**Step 3 — Feasibility check:**
+
+Point accepted only if both constraints satisfied.
+
+---
+
+###  Attack Strategy
+
+**Key insight:** For linear SVM, the **worst poison point** minimizes `y · ⟨θ, x⟩`.
+
+Solution: Take **smallest k=30 scores**, set those words = 1, all others = 0.
+
+```python
+def worst_point(theta, y):
+    scores = theta * y
+    idx = np.argsort(scores)[:30]  # most negative for y=+1
+    x = np.zeros_like(theta)
+    x[idx] = 1
+    return x
+```
+
+Attacker:
+1. Generates worst possible point for current model
+2. Checks if it's **feasible** (inside defense region)
+3. If yes, adds it to training set
+4. Retrains every 20 steps
+
+---
+
+###  Key Result
+
+**Clean accuracy:** 84.4% → **Clean error:** 15.6%
+
+**After 750 poison points (ε = 0.03):**
+
+- **Test error:** 15.6% → ~17.2%
+- **Increase:** Only **+1.6%** after **750 poisoned reviews**
+
+**Plot shows:** Test error almost flat. Defense contains the damage.
+
+---
+
+###  Why This Matters
+
+| Version | Data | Defense | Result |
+|--------|------|---------|--------|
+| Code 1 | 2D Gaussian | Oracle sphere+slab | Loss almost flat |
+| Code 2 | IMDB (20k dim) | Oracle sphere+slab | Error almost flat |
+
+**Takeaway:** The oracle defense **scales to high dimensions** and **real text data**. Even with 750 poisoned reviews, the attacker can barely move test error.
+
