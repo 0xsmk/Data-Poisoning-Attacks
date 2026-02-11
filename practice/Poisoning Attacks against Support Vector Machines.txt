@@ -1,182 +1,205 @@
+===============================================================================
+POISONING ATTACKS AGAINST SUPPORT VECTOR MACHINES
+===============================================================================
+Biggio et al. (2012) — Reproduction of Experiments 3.1 & MNIST
+===============================================================================
+
+-------------------------------------------------------------------------------
+IMPLEMENTATION 1: HEURISTIC ATTACK (INTUITIVE, VISUAL)
+-------------------------------------------------------------------------------
+
 Google Colab Notebook:
 https://colab.research.google.com/drive/1d0z6_KkQys0-CLarB3RmFa_lCR97BFLO
 
-##  What This Code Does
+WHAT THIS CODE DOES:
+A clean, minimal, highly visual implementation of SVM poisoning.
+Uses a simple heuristic instead of the exact gradient: move the attack point
+AWAY from support vectors of the attacked class.
 
-This notebook provides a **clean, minimal, and highly visual** implementation of a poisoning attack against linear SVM.  
+Designed for INTUITIVE UNDERSTANDING — works beautifully on 2D data.
 
-It is designed for **intuitive understanding**: instead of deriving the exact gradient, it uses a **simple heuristic** — **move the attack point away from the support vectors of the attacked class**. This is an approximation of the true gradient, but it works remarkably well on 2D data and produces beautiful visualizations.
+-------------------------------------------------------------------------------
+EXPERIMENT: Synthetic 2D Gaussian Data
+-------------------------------------------------------------------------------
 
----
+STEP 1 — DATA GENERATION:
 
-##  Experiment: Synthetic 2D Gaussian Data
+Class  | Label | Center     | Covariance | Points
+-------|-------|------------|-----------|--------
+Red    | -1    | [-1.5, 0]  | 0.6 * I   | 25
+Blue   | +1    | [1.5, 0]   | 0.6 * I   | 25
 
-**Goal:** Visually demonstrate that a **single carefully placed point** can shift the SVM decision boundary and degrade validation accuracy.
+Training: 25 points | Validation: 25 points
 
----
+STEP 2 — INITIAL SVM:
+Linear SVM, C = 1.0
+- Training accuracy:     ~0.92
+- Validation accuracy:   ~0.92
+Decision boundary: vertical line near x = 0
 
-###  Step 1 — Data Generation
+STEP 3 — ATTACK INITIALIZATION:
+- Attacked class: +1 (blue)  — we want to hurt this class
+- Attack class:   -1 (red)   — poisoned point will have this label
+- Initial point: first blue training point, label flipped to red
+- Start: [0.63, 0.03] as red point inside blue cluster
 
-Two Gaussian clusters are generated:
-
-| Class | Label | Center     | Covariance | Points |
-|-------|-------|------------|-----------|--------|
-| Red   | `-1`  | `[-1.5, 0]` | `0.6 * I` | 25     |
-| Blue  | `+1`  | `[1.5, 0]`  | `0.6 * I` | 25     |
-
-- Training set: 25 points total (12–13 per class)
-- Validation set: 25 points total (held out, stratified)
-
----
-
-###  Step 2 — Initial SVM Training
-
-A **linear SVM** with `C=1.0` is trained on the clean data.
-
-- Training accuracy: **~0.92**
-- Validation accuracy: **~0.92**
-
-The decision boundary is a straight line approximately at `x=0`, perfectly separating the two blobs.
-
----
-
-###  Step 3 — Attack Initialization
-
-The attack is **targeted at the positive class** (`+1`, blue):
-
-- **Attacked class:** `+1` (blue) — we want to hurt this class
-- **Attack class:** `-1` (red) — the poisoned point will have this label
-
-**Selection of initial attack point:**
-- Take the **first training point from the attacked class** (blue)
-- Keep its features, but **flip its label** to `-1` (red)
-
-```
-Initial point: [0.63, 0.03], new class: -1
-```
-
-This point now looks like a blue point but claims to be red — it's a **mislabeled outlier**.
-
----
-
-###  Step 4 — Heuristic Gradient Ascent
+STEP 4 — HEURISTIC GRADIENT ASCENT:
 
 At each iteration:
+1. Inject current attack point into training set (label = -1)
+2. Train SVM on poisoned data
+3. Compute hinge loss on validation set
+4. Find support vectors of attacked class (+1)
+5. Move attack point:
 
-1. **Inject** the current attack point into the training set (with label `-1`).
-2. **Train SVM** on the poisoned dataset.
-3. **Compute hinge loss** on the validation set.
-4. **Find support vectors** of the attacked class (`+1`).
-5. **Move the attack point** in the direction:
-
-```
+--------------------------------------------------------------------------------
 direction = attack_point - mean(positive_support_vectors)
 attack_point += step_size * direction
-```
+--------------------------------------------------------------------------------
 
-**Why this direction works:**
+Why it works: Moving away from positive SVs pushes decision boundary into
+positive region → more positive validation points misclassified → hinge loss ↑
 
-- Positive support vectors are the **most critical points** holding the decision boundary.
-- By moving the attack point **away** from them, we **push the boundary into the positive region**.
-- This causes more positive validation points to fall on the wrong side → **higher hinge loss**.
+This is NOT the exact gradient, but approximates uphill direction.
 
-This is **not the exact gradient**, but it points roughly **uphill** in the loss landscape.
+STEP 5 — VISUALIZATIONS:
 
----
+1. ATTACK TRAJECTORY:
+   - Black line: path of attack point
+   - Green square: start (blue point labeled red)
+   - Red star: final (deep in red territory)
+   - Decision boundary shifts LEFT as attack progresses
 
-###  Step 5 — Visualization
+2. LOSS EVOLUTION:
+   - Initial hinge loss:  ~0.125
+   - Final hinge loss:    ~0.236 (30 iterations)
+   - Monotonic increase → heuristic works
 
-The notebook produces **three key visualizations**:
+3. BEFORE/AFTER COMPARISON:
+   - Clean SVM: boundary at x≈0
+   - Poisoned SVM: boundary shifted left
+   - Validation accuracy: 0.92 → 0.88 (4% drop)
 
-####  Attack Trajectory
-- The path of the attack point is plotted in black.
-- **Green square**: start point (inside blue cluster, labeled red)
-- **Red star**: final point (far into red territory)
-- The decision boundary visibly **shifts leftward** as the attack progresses.
-
-####  Loss Evolution
-- Hinge loss on validation set is tracked.
-- Starts at ~0.125, rises to ~0.236 after 30 iterations.
-- **Monotonic increase** confirms the heuristic is working.
-
-####  Before / After Comparison
-- Two side-by-side decision boundaries:
-  - **Before**: Clean SVM, boundary near x=0
-  - **After**: Poisoned SVM, boundary shifted left
-- Validation accuracy drops from **0.92 → 0.88** (4% drop).
-
+-------------------------------------------------------------------------------
+IMPLEMENTATION 2: EXACT GRADIENT ATTACK (MATHEMATICALLY PRECISE)
+-------------------------------------------------------------------------------
 
 Google Colab Notebook:
 https://colab.research.google.com/drive/1CxBFmIm7pPCFAxK-BIn2TB0WvWsaTw8q
 
+WHAT THIS CODE DOES:
+Complete replication of Biggio 2012 with EXACT gradient from Equation (10).
+Two experiments: 2D Gaussian (visual) + MNIST 7vs1 (high-dimensional).
 
-###  What This Code Does
+-------------------------------------------------------------------------------
+EXPERIMENT 1: Synthetic 2D Gaussian Data (Section 3.1)
+-------------------------------------------------------------------------------
 
-This notebook provides **two complete experiments** that replicate the poisoning attack against Support Vector Machines **exactly as derived in the original paper**.
+Same data as heuristic version, but with EXACT gradient:
 
-Unlike simpler heuristic implementations, this code **computes the exact gradient** of the validation loss with respect to the attack point, following **Equation (10)** from Biggio et al. 2012.
+dL/dx_c = (Mk @ dQsc + dQkc)
 
----
+Where:
+- Mk depends on inverse kernel matrix over support vectors
+- dQsc: derivative of kernel between SVs and attack point
+- dQkc: derivative of kernel between validation point and attack point
+- Only active validation points (hinge loss > 0) contribute
 
-##  Experiment 1: Synthetic 2D Gaussian Data (Section 3.1)
+RESULTS:
+- Clean decision boundary at x≈0
+- Attack point follows mathematically optimal path
+- Hinge loss increases monotonically
+- Decision boundary visibly shifts left
 
-**Goal:** Visually demonstrate how a single poisoned point shifts the SVM decision boundary.
+-------------------------------------------------------------------------------
+EXPERIMENT 2: MNIST Binary Classification (7 vs 1)
+-------------------------------------------------------------------------------
 
-**What happens step by step:**
+SCALING TO HIGH DIMENSIONS:
 
-1. **Data Generation**
-   - Creates two Gaussian clusters: negative class at `[-1.5, 0]`, positive class at `[1.5, 0]`.
-   - 25 points per class for training, 1000 points for validation.
+Dataset:
+- MNIST digits: 7 (negative, -1) vs 1 (positive, +1)
+- 784 features (28x28 pixels)
+- Training: 100 samples
+- Validation: 500 samples
+- Test: remainder
 
-2. **Attack Initialization**
-   - Takes a **clean point from the positive class** (`+1`), flips its label to `-1`.
-   - This point will be iteratively optimized.
+Preprocessing:
+- Pixel values normalized to [0,1]
+- StandardScaler (critical for linear SVM)
 
-3. **Exact Gradient Computation**
-   - Implements the full closed-form gradient `dL/dx_c` from the paper.
-   - Uses **KKT conditions** to identify support vector sets (`R`, `S`, `E`).
-   - Computes kernel matrices and their inverses.
-   - Only considers **active validation points** (where hinge loss > 0).
+ATTACK EXECUTION:
 
-4. **Gradient Ascent**
-   - Updates the attack point in the direction that **maximizes validation hinge loss**.
-   - Records the full trajectory through 2D space.
+At each iteration:
+1. Train SVM on current poisoned training set
+2. Compute exact poisoning gradient (Equation 10)
+3. Update attack point: xc = xc + step · (grad / ||grad||)
+4. APPEND poisoned point to training set (dataset grows)
+5. Track accuracy on train/validation/test sets
 
-5. **Visualization**
-   - Decision boundary before/after attack.
-   - Attack path superimposed on data distribution.
-   - Hinge loss evolution showing **monotonic increase** during attack.
+KEY FINDING:
 
-**Key insight:**  
-The attack point **moves away from positive support vectors** and **crosses the decision boundary**, effectively dragging the hyperplane with it.
+Even on high-dimensional real data (784 features):
+- ONE carefully crafted point
+- Test accuracy drops from ~98% → ~85%
+- Under 50 iterations
+- Poisoned sample = unrecognizable noise, not a digit
 
----
+VISUALIZATIONS:
+- Accuracy degradation curves (train/val/test)
+- Final poisoned image — looks like random noise
+- Support vector statistics after attack
 
-##  Experiment 2: MNIST Binary Classification (7 vs 1)
+-------------------------------------------------------------------------------
+COMPARISON: HEURISTIC vs EXACT GRADIENT
+-------------------------------------------------------------------------------
 
-**Goal:** Scale the same exact-gradient attack to **high-dimensional data (784 features)** and measure accuracy degradation.
+Feature              | Heuristic Version          | Exact Gradient Version
+---------------------|---------------------------|-------------------------
+Gradient             | xc - mean(SV_attacked)    | Full closed-form (Eq. 10)
+Math level           | High school geometry      | Matrix calculus, KKT
+Data                 | 2D only                   | 2D + MNIST (784D)
+Kernel               | Linear only               | Linear + RBF ready
+Speed                | Very fast                 | Slower (matrix inverse)
+Fidelity to paper    | Approximate               | EXACT
+Pedagogical value    | ⭐⭐⭐⭐⭐                  | ⭐⭐⭐
+Research value       | ⭐⭐                      | ⭐⭐⭐⭐⭐
 
-**What happens step by step:**
+-------------------------------------------------------------------------------
+WHEN TO USE EACH VERSION
+-------------------------------------------------------------------------------
 
-1. **Dataset Preparation**
-   - Loads MNIST, filters only digits **7** (negative class, `-1`) and **1** (positive class, `+1`).
-   - Standardizes features (critical for linear SVM).
-   - Small training set (100 samples) to make attack effective.
+USE HEURISTIC WHEN:
+- Explaining poisoning attacks to beginners
+- Need a quick, visual demo for presentations
+- Learning SVM and want to SEE the boundary move
+- Mathematical exactness not required
 
-2. **Attack Execution**
-   - Same gradient formulation, now with **linear kernel in 784D**.
-   - At **each iteration**:
-     - Train SVM on current poisoned training set.
-     - Compute exact poisoning gradient.
-     - Update attack point.
-     - **Append poisoned point to training set** (dataset grows).
-   - Tracks train/validation/test accuracy over iterations.
+USE EXACT GRADIENT WHEN:
+- Reproducing the paper for research
+- Measuring attack efficacy on real data
+- Extending the attack (RBF kernels, different losses)
+- Numerical correctness is critical
 
-3. **Results Tracking**
-   - Plots **accuracy degradation curves** for all three splits.
-   - Visualizes **final poisoned image** — it looks like **noise**, not a digit.
-   - Reports support vector statistics after attack.
+-------------------------------------------------------------------------------
+SUMMARY
+-------------------------------------------------------------------------------
 
-**Key finding:**  
-Even on high-dimensional real data, **a single carefully crafted point** degrades test accuracy from ~98% to ~85% in under 50 iterations. The poisoned sample is **unrecognizable to a human** but devastating to the model.
+Two notebooks, one paper, complete coverage:
 
+1. HEURISTIC:
+   - 50 lines of core logic
+   - Beautiful 2D visualizations
+   - Perfect for intuition
+
+2. EXACT GRADIENT:
+   - Full mathematical derivation
+   - Works on MNIST (784 features)
+   - 98% → 85% accuracy with ONE point
+   - Faithful to original Biggio 2012
+
+BOTH demonstrate the same truth:
+A single, carefully placed poisoned point can dramatically degrade SVM
+performance — even with linear kernels and clean labels on the attack point.
+
+===============================================================================
